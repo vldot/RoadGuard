@@ -1,0 +1,190 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  END_USER
+  WORKSHOP_ADMIN
+  MECHANIC
+  SUPER_ADMIN
+}
+
+enum ServiceStatus {
+  SUBMITTED
+  ASSIGNED
+  IN_PROGRESS
+  REACHED
+  COMPLETED
+  CANCELLED
+}
+
+enum WorkerAvailability {
+  AVAILABLE
+  IN_SERVICE
+  NOT_AVAILABLE
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  phone     String?  @unique
+  name      String
+  role      UserRole
+  password  String
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Workshop Admin specific
+  workshop Workshop?
+
+  // Mechanic specific
+  mechanic Mechanic?
+
+  // End User specific
+  serviceRequests ServiceRequest[]
+
+  @@map("users")
+}
+
+model Workshop {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  address     String
+  latitude    Float
+  longitude   Float
+  phone       String
+  isOpen      Boolean   @default(true)
+  rating      Float     @default(0)
+  reviewCount Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  adminId     String @unique
+  admin       User   @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  mechanics       Mechanic[]
+  serviceRequests ServiceRequest[]
+
+  @@map("workshops")
+}
+
+model Mechanic {
+  id           String            @id @default(cuid())
+  specialties  String[] // Array of specialties like ["Engine", "Brake", "Transmission"]
+  experience   Int               @default(0) // years of experience
+  availability WorkerAvailability @default(AVAILABLE)
+  rating       Float             @default(0)
+  reviewCount  Int               @default(0)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  // Relations
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  workshopId String
+  workshop   Workshop @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+
+  assignedServices ServiceRequest[]
+
+  @@map("mechanics")
+}
+
+model ServiceRequest {
+  id              String        @id @default(cuid())
+  vehicleType     String        // Car, Bike, Truck, etc.
+  vehicleMake     String?       // Honda, Toyota, etc.
+  vehicleModel    String?       // Civic, Camry, etc.
+  issueType       String        // Engine Problem, Flat Tire, etc.
+  description     String
+  urgency         String        @default("MEDIUM") // LOW, MEDIUM, HIGH
+  images          String[]      // Array of image URLs
+  
+  // Location
+  pickupAddress   String
+  latitude        Float
+  longitude       Float
+  
+  // Status and tracking
+  status          ServiceStatus @default(SUBMITTED)
+  estimatedCost   Float?
+  actualCost      Float?
+  
+  // Timestamps
+  requestedAt     DateTime      @default(now())
+  assignedAt      DateTime?
+  startedAt       DateTime?
+  reachedAt       DateTime?
+  completedAt     DateTime?
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  customerId      String
+  customer        User          @relation(fields: [customerId], references: [id])
+  
+  workshopId      String?
+  workshop        Workshop?     @relation(fields: [workshopId], references: [id])
+  
+  mechanicId      String?
+  mechanic        Mechanic?     @relation(fields: [mechanicId], references: [id])
+
+  // Service updates and communication
+  updates         ServiceUpdate[]
+
+  @@map("service_requests")
+}
+
+model ServiceUpdate {
+  id        String   @id @default(cuid())
+  message   String
+  images    String[] // Additional images during service
+  timestamp DateTime @default(now())
+  
+  // Relations
+  serviceRequestId String
+  serviceRequest   ServiceRequest @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
+
+  @@map("service_updates")
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  userId      String   // User who should receive the notification
+  title       String
+  message     String
+  type        String   // e.g., "NEW_ASSIGNMENT", "STATUS_UPDATE", etc.
+  isRead      Boolean  @default(false)
+  relatedId   String?  // Related entity ID (e.g., serviceRequestId)
+  createdAt   DateTime @default(now())
+
+  @@map("notifications")
+}
+
+model MechanicSchedule {
+  id          String   @id @default(cuid())
+  mechanicId  String
+  title       String
+  description String?
+  startTime   DateTime
+  endTime     DateTime
+  isAllDay    Boolean  @default(false)
+  type        String   // "SERVICE", "LEAVE", "TRAINING", etc.
+  serviceId   String?  // If related to a service request
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("mechanic_schedules")
+}
