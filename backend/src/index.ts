@@ -13,6 +13,7 @@ import adminRoutes from './routes/admin';
 import userRoutes from './routes/users';
 import serviceRoutes from './routes/services';
 import workshopRoutes from './routes/workshops';
+import mechanicsRouter from './routes/mechanics';
 
 // Middleware imports
 import { errorHandler } from './middleware/errorHandler';
@@ -47,6 +48,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/workshops', workshopRoutes);
+app.use('/api/mechanics', mechanicsRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {

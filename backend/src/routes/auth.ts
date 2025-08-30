@@ -276,6 +276,67 @@ router.post('/register', async (req, res) => {
   }
 });
 
+// Create Super Admin endpoint (for initial setup)
+router.post('/create-super-admin', async (req, res) => {
+  try {
+    // Check if any super admin already exists
+    const existingSuperAdmin = await prisma.user.findFirst({
+      where: { role: 'SUPER_ADMIN' }
+    });
+
+    if (existingSuperAdmin) {
+      return res.status(400).json({ error: 'Super admin already exists' });
+    }
+
+    const { name, email, password } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: 'Name, email, and password are required' });
+    }
+
+    // Check if user already exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email }
+    });
+
+    if (existingUser) {
+      return res.status(400).json({ error: 'User already exists with this email' });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    // Create super admin
+    const superAdmin = await prisma.user.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+        role: 'SUPER_ADMIN',
+        verified: true
+      }
+    });
+
+    // Generate token
+    const token = generateToken(superAdmin.id);
+
+    res.status(201).json({
+      message: 'Super admin created successfully',
+      token,
+      user: {
+        id: superAdmin.id,
+        name: superAdmin.name,
+        email: superAdmin.email,
+        role: superAdmin.role
+      }
+    });
+
+  } catch (error) {
+    console.error('Create super admin error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Login endpoint
 router.post('/login', async (req, res) => {
   try {

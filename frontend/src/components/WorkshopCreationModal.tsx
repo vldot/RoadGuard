@@ -1,14 +1,14 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import axios from 'axios';
+import { useLiveLocation } from '../hooks/useLiveLocation';
 import { toast } from 'react-hot-toast';
 import { 
   MapPin, 
-  Phone, 
   Building,
   Loader2,
-  X,
-  CheckCircle
+  CheckCircle,
+  AlertCircle
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -39,6 +39,17 @@ const WorkshopCreationModal: React.FC<WorkshopCreationModalProps> = ({
   });
 
   const [step, setStep] = useState<'form' | 'success'>('form');
+  const { location, loading, error } = useLiveLocation();
+  // Auto-fill coordinates when location is detected
+  useEffect(() => {
+    if (location && formData.latitude === 0 && formData.longitude === 0) {
+      setFormData(prev => ({
+        ...prev,
+        latitude: location.latitude,
+        longitude: location.longitude
+      }));
+    }
+  }, [location]);
 
   // Create workshop mutation
   const createWorkshopMutation = useMutation({
@@ -214,17 +225,38 @@ const WorkshopCreationModal: React.FC<WorkshopCreationModalProps> = ({
                 </div>
 
                 {/* Map Preview */}
-                <div className="h-32 bg-muted rounded border flex items-center justify-center">
-                  <div className="text-center text-muted-foreground">
-                    <MapPin className="h-6 w-6 mx-auto mb-1" />
-                    <p className="text-sm">Location preview</p>
-                    {formData.latitude !== 0 && formData.longitude !== 0 && (
-                      <p className="text-xs">
-                        Lat: {formData.latitude.toFixed(4)}, Lng: {formData.longitude.toFixed(4)}
-                      </p>
+                {(formData.latitude !== 0 && formData.longitude !== 0) ? (
+                  <div className="h-64 rounded border overflow-hidden">
+                    <iframe
+                      src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyB41DRUbKWJHPxaFjMAwdrzWzbVKartNGg&q=${formData.latitude},${formData.longitude}&zoom=15`}
+                      width="100%"
+                      height="100%"
+                      style={{ border: 0 }}
+                      // allowFullScreen=""
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                    />
+                  </div>
+                ) : (
+                  <div className="h-32 bg-muted rounded border flex items-center justify-center">
+                    {loading ? (
+                      <div className="text-center text-muted-foreground">
+                        <Loader2 className="h-6 w-6 mx-auto mb-1 animate-spin" />
+                        <p className="text-sm">Getting location...</p>
+                      </div>
+                    ) : error ? (
+                      <div className="text-center text-red-500">
+                        <AlertCircle className="h-6 w-6 mx-auto mb-1" />
+                        <p className="text-sm">{error}</p>
+                      </div>
+                    ) : (
+                      <div className="text-center text-muted-foreground">
+                        <MapPin className="h-6 w-6 mx-auto mb-1" />
+                        <p className="text-sm">Click location button to show map</p>
+                      </div>
                     )}
                   </div>
-                </div>
+                )}
               </CardContent>
             </Card>
 

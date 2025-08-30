@@ -258,17 +258,25 @@ const AddWorkshopForm: React.FC<AddWorkshopFormProps> = ({ isOpen, onClose, user
               </div>
 
               {/* Map Preview */}
-              <div className="h-32 bg-muted rounded border flex items-center justify-center">
-                <div className="text-center text-muted-foreground">
-                  <MapPin className="h-6 w-6 mx-auto mb-1" />
-                  <p className="text-sm">Map preview will appear here</p>
-                  {formData.latitude !== 0 && formData.longitude !== 0 && (
-                    <p className="text-xs">
-                      Lat: {formData.latitude.toFixed(4)}, Lng: {formData.longitude.toFixed(4)}
-                    </p>
-                  )}
+              {(formData.latitude !== 0 && formData.longitude !== 0) ? (
+                <div className="h-64 rounded border overflow-hidden">
+                  <iframe
+                    src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyB41DRUbKWJHPxaFjMAwdrzWzbVKartNGg&q=${formData.latitude},${formData.longitude}&zoom=15`}
+                    width="100%"
+                    height="100%"
+                    style={{ border: 0 }}
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                  />
                 </div>
-              </div>
+              ) : (
+                <div className="h-32 bg-muted rounded border flex items-center justify-center">
+                  <div className="text-center text-muted-foreground">
+                    <MapPin className="h-6 w-6 mx-auto mb-1" />
+                    <p className="text-sm">Click location button to show map</p>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 

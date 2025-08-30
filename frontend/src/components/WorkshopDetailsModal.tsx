@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -23,6 +23,24 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+// Utility function to calculate distance between two coordinates
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const R = 6371; // Radius of the Earth in kilometers
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+};
+
+interface UserLocation {
+  lat: number;
+  lng: number;
+}
 
 interface WorkshopDetailsModalProps {
   isOpen: boolean;
@@ -66,6 +84,22 @@ const WorkshopDetailsModal: React.FC<WorkshopDetailsModalProps> = ({
   workshopId 
 }) => {
   const navigate = useNavigate();
+  const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
+  
+  // Get user's location for directions
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          });
+        },
+        (error) => console.log('Location error:', error)
+      );
+    }
+  }, []);
   
   // Fetch workshop details
   const { data: workshopData, isLoading } = useQuery({
@@ -385,14 +419,26 @@ const WorkshopDetailsModal: React.FC<WorkshopDetailsModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Map Placeholder */}
-                  <div className="h-64 bg-muted rounded border flex items-center justify-center">
-                    <div className="text-center text-muted-foreground">
-                      <MapPin className="h-8 w-8 mx-auto mb-2" />
-                      <p>Interactive map will be displayed here</p>
-                      <p className="text-sm">
-                        Lat: {workshop.latitude.toFixed(4)}, Lng: {workshop.longitude.toFixed(4)}
+                  <div className="h-64 bg-gradient-to-br from-blue-100 to-green-100 rounded border flex items-center justify-center relative">
+                    <div className="text-center">
+                      <div className="w-8 h-8 bg-red-500 rounded-full mx-auto mb-2 flex items-center justify-center">
+                        <MapPin className="h-5 w-5 text-white" />
+                      </div>
+                      <p className="font-medium text-gray-700">{workshop.name}</p>
+                      <p className="text-sm text-gray-600">{workshop.address}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {workshop.latitude.toFixed(4)}, {workshop.longitude.toFixed(4)}
                       </p>
+                      {userLocation && (
+                        <p className="text-xs text-blue-600 mt-1">
+                          {calculateDistance(
+                            userLocation.lat, 
+                            userLocation.lng, 
+                            workshop.latitude, 
+                            workshop.longitude
+                          ).toFixed(1)} km away
+                        </p>
+                      )}
                     </div>
                   </div>
 

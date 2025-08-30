@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
+import LiveLocationDisplay from '../components/LiveLocationDisplay';
 import { toast } from 'react-hot-toast';
 import { 
   ArrowLeft,
@@ -33,6 +34,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '../context/AuthContext';
 import { servicePresets, calculateServiceCost, ServicePreset, CostBreakdown, vehicleMultipliers } from '../components/ServiceCostPresets';
 import ServiceQuotationDetails from '../components/ServiceQuotationDetails';
+import { LocationData } from '../hooks/useLiveLocation';
 
 interface ServiceRequestFormData {
   customerName: string;
@@ -75,6 +77,7 @@ const NewServiceRequestScreen: React.FC = () => {
   const [selectedService, setSelectedService] = useState<ServicePreset | null>(null);
   const [costBreakdown, setCostBreakdown] = useState<CostBreakdown | null>(null);
   
+  const [userLocation, setUserLocation] = useState<LocationData | null>(null);
   const [formData, setFormData] = useState<ServiceRequestFormData>({
     customerName: user?.name || '',
     customerPhone: '',
@@ -92,6 +95,15 @@ const NewServiceRequestScreen: React.FC = () => {
     longitude: 0,
     selectedServiceId: ''
   });
+  
+  const handleLocationChange = (location: LocationData | null) => {
+    setUserLocation(location);
+    setFormData(prev => ({
+      ...prev,
+      latitude: location?.latitude || 0,
+      longitude: location?.longitude || 0
+    }));
+  };
 
   // Filter service presets based on selected vehicle type
   const filteredServicePresets = formData.vehicleType 
@@ -521,7 +533,7 @@ const NewServiceRequestScreen: React.FC = () => {
               </Card>
 
               {/* Location */}
-              <Card>
+              {/* <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center">
                     <MapPin className="h-5 w-5 mr-2" />
@@ -546,7 +558,7 @@ const NewServiceRequestScreen: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Map Preview */}
+                  {/* Map Preview 
                   <div className="h-24 bg-muted rounded border flex items-center justify-center">
                     <div className="text-center text-muted-foreground text-sm">
                       <MapPin className="h-5 w-5 mx-auto mb-1" />
@@ -559,8 +571,40 @@ const NewServiceRequestScreen: React.FC = () => {
                     </div>
                   </div>
                 </CardContent>
-              </Card>
+              </Card> */}
 
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <MapPin className="h-5 w-5 mr-2" />
+                    Service Location
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <LiveLocationDisplay 
+                    onLocationChange={handleLocationChange}
+                    showMap={true}
+                    mapHeight="400px"
+                    enableSearch={true}
+                    showAddress={true}
+                    showAccuracy={true}
+                  />
+                  
+                  {/* Optional manual address override */}
+                  {userLocation && (
+                    <div className="mt-4">
+                      <Label htmlFor="addressOverride">Address Override (Optional)</Label>
+                      <Input
+                        id="addressOverride"
+                        value={formData.pickupAddress}
+                        onChange={(e) => setFormData(prev => ({ ...prev, pickupAddress: e.target.value }))}
+                        placeholder="Override detected address if needed"
+                        className="mt-1"
+                      />
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
               {/* Upload Images */}
               <Card>
                 <CardHeader>
