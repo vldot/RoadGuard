@@ -12,6 +12,9 @@ import MechanicDashboard from './pages/MechanicDashboard';
 import EndUserDashboard from './pages/EndUserDashboard';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import NewServiceRequestScreen from './pages/NewServiceRequestScreen';
+import MyRequestsPage from './pages/MyRequestsPage';
+import MyWorkshopPage from './pages/MyWorkshopPage';
+import ServiceTrackingPage from './pages/ServiceTrackingPage';
 import LoadingSpinner from './components/ui/loading-spinner';
 
 const queryClient = new QueryClient({
@@ -90,12 +93,42 @@ const App: React.FC = () => {
                 }
               />
               
-              {/* Service Request Route */}
+              {/* Service Request Routes */}
               <Route 
                 path="/new-service" 
                 element={
                   <ProtectedRoute allowedRoles={['END_USER']}>
                     <NewServiceRequestScreen />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* My Requests Route - End Users Only */}
+              <Route 
+                path="/my-requests" 
+                element={
+                  <ProtectedRoute allowedRoles={['END_USER']}>
+                    <MyRequestsPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Service Tracking Route */}
+              <Route 
+                path="/track-service/:id" 
+                element={
+                  <ProtectedRoute>
+                    <ServiceTrackingPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* My Workshop Route - Workshop Admins Only */}
+              <Route 
+                path="/my-workshop" 
+                element={
+                  <ProtectedRoute allowedRoles={['WORKSHOP_ADMIN']}>
+                    <MyWorkshopPage />
                   </ProtectedRoute>
                 }
               />
@@ -106,6 +139,16 @@ const App: React.FC = () => {
                 element={
                   <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
                     <SuperAdminDashboard />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Mechanic Routes */}
+              <Route 
+                path="/mechanic" 
+                element={
+                  <ProtectedRoute allowedRoles={['MECHANIC']}>
+                    <MechanicDashboard />
                   </ProtectedRoute>
                 }
               />

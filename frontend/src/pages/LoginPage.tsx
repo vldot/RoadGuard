@@ -155,14 +155,6 @@ const LoginPage: React.FC = () => {
               >
                 Continue with Google
               </Button>
-              <Button 
-                variant="outline" 
-                className="w-full" 
-                disabled={isLoading}
-                onClick={() => {/* TODO: Implement Microsoft OAuth */}}
-              >
-                Continue with Microsoft
-              </Button>
             </div>
 
             <Separator />

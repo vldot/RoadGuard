@@ -24,6 +24,17 @@ const createUserSchema = z.object({
   }).optional()
 });
 
+const createMechanicSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters'),
+  email: z.string().email('Invalid email format'),
+  phone: z.string().min(1, 'Phone is required'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  role: z.literal('MECHANIC'),
+  workshopId: z.string().min(1, 'Workshop ID is required'),
+  experience: z.number().min(0).default(0),
+  specialties: z.array(z.string()).min(1, 'At least one specialty is required')
+});
+
 const updateUserSchema = z.object({
   name: z.string().min(2).optional(),
   email: z.string().email().optional(),
@@ -158,6 +169,94 @@ router.post('/users', authenticateToken, requireRole(['SUPER_ADMIN']), async (re
       return res.status(400).json({ error: 'Validation failed', details: error.errors });
     }
     console.error('Error creating user:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/mechanics - Create mechanic account (Workshop Admin only)
+router.post('/mechanics', authenticateToken, requireRole(['WORKSHOP_ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const validatedData = createMechanicSchema.parse(req.body);
+    const { name, email, phone, password, workshopId, experience, specialties } = validatedData;
+
+    // Verify that the workshop belongs to the current admin
+    const workshop = await prisma.workshop.findFirst({
+      where: { 
+        id: workshopId,
+        adminId: req.user!.id 
+      }
+    });
+
+    if (!workshop) {
+      return res.status(403).json({ error: 'You can only add mechanics to your own workshop' });
+    }
+
+    // Check if user already exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email }
+    });
+
+    if (existingUser) {
+      return res.status(400).json({ error: 'User already exists with this email' });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    // Create mechanic with transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Create user
+      const newUser = await tx.user.create({
+        data: {
+          name,
+          email,
+          password: hashedPassword,
+          phone,
+          role: 'MECHANIC',
+          verified: true
+        }
+      });
+
+      // Create mechanic profile
+      const newMechanic = await tx.mechanic.create({
+        data: {
+          userId: newUser.id,
+          workshopId,
+          experience,
+          specialties,
+          availability: 'AVAILABLE'
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+              role: true
+            }
+          },
+          workshop: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        }
+      });
+
+      return newMechanic;
+    });
+
+    res.status(201).json({ 
+      message: 'Mechanic created successfully',
+      mechanic: result 
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Validation failed', details: error.errors });
+    }
+    console.error('Error creating mechanic:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
