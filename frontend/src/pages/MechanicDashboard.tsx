@@ -19,7 +19,8 @@ import {
   RefreshCw,
   Eye,
   Edit3,
-  Send
+  Send,
+  LogOut
 } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -83,7 +84,7 @@ interface Comment {
 }
 
 const MechanicDashboard: React.FC = () => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const queryClient = useQueryClient();
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -358,6 +359,10 @@ const MechanicDashboard: React.FC = () => {
               <Badge variant="secondary">
                 {filteredRequests.length} Tasks
               </Badge>
+              <Button onClick={logout} variant="outline" size="sm">
+                <LogOut className="h-4 w-4 mr-2" />
+                Logout
+              </Button>
             </div>
           </div>
         </div>
