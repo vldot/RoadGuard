@@ -39,26 +39,55 @@ const assignMechanicSchema = z.object({
   mechanicId: z.string().min(1, 'Mechanic ID is required')
 });
 
-// GET /api/services - Get all service requests (admin only)
-router.get('/', authenticateToken, requireRole(['WORKSHOP_ADMIN']), async (req: AuthRequest, res) => {
+// GET /api/services - Get all service requests (admin only) or mechanic's assigned requests
+router.get('/', authenticateToken, requireRole(['WORKSHOP_ADMIN', 'MECHANIC']), async (req: AuthRequest, res) => {
   try {
-    const { status, limit = 20, offset = 0 } = req.query;
+    const { status, limit = 20, offset = 0, assignedMechanicId } = req.query;
 
-    // Get user's workshop
-    const workshop = await prisma.workshop.findUnique({
-      where: { adminId: req.user!.id }
-    });
+    let whereClause: any = {};
 
-    if (!workshop) {
-      return res.status(404).json({ error: 'Workshop not found' });
+    if (req.user!.role === 'WORKSHOP_ADMIN') {
+      // Get user's workshop
+      const workshop = await prisma.workshop.findUnique({
+        where: { adminId: req.user!.id }
+      });
+
+      if (!workshop) {
+        return res.status(404).json({ error: 'Workshop not found' });
+      }
+
+      whereClause = {
+        OR: [
+          { workshopId: workshop.id },
+          { workshopId: null } // Unassigned requests
+        ]
+      };
+    } else if (req.user!.role === 'MECHANIC') {
+      // Handle mechanic queries
+      if (assignedMechanicId) {
+        // Verify the mechanic belongs to the requesting user
+        const mechanic = await prisma.mechanic.findUnique({
+          where: { id: assignedMechanicId as string, userId: req.user!.id }
+        });
+
+        if (!mechanic) {
+          return res.status(403).json({ error: 'Access denied - mechanic not found or not yours' });
+        }
+
+        whereClause.mechanicId = assignedMechanicId;
+      } else {
+        // Get mechanic's own assignments
+        const mechanic = await prisma.mechanic.findUnique({
+          where: { userId: req.user!.id }
+        });
+
+        if (!mechanic) {
+          return res.status(404).json({ error: 'Mechanic profile not found' });
+        }
+
+        whereClause.mechanicId = mechanic.id;
+      }
     }
-
-    const whereClause: any = {
-      OR: [
-        { workshopId: workshop.id },
-        { workshopId: null } // Unassigned requests
-      ]
-    };
 
     if (status && status !== 'ALL') {
       whereClause.status = status;

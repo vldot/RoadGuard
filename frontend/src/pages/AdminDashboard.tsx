@@ -19,7 +19,8 @@ import {
   Building,
   Plus,
   BarChart3,
-  Eye
+  Eye,
+  RefreshCw
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -75,17 +76,33 @@ const AdminDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const queryClient = useQueryClient();
 
-  // Fetch service requests - only if workshop exists
-  const { data: serviceRequestsData, isLoading: requestsLoading } = useQuery({
-    queryKey: ['serviceRequests', statusFilter],
+  // Fetch user's workshop first
+  const { data: workshopData, isLoading: workshopLoading, refetch: refetchWorkshop } = useQuery({
+    queryKey: ['workshop', 'my-workshop'],
     queryFn: async () => {
-      const response = await axios.get('/services', {
-        params: { status: statusFilter }
-      });
+      const response = await axios.get('/workshops/my-workshop');
       return response.data;
     },
+    retry: false // Don't retry on 404
+  });
+
+  // Fetch service requests - only if workshop exists
+  const { data: serviceRequestsData, isLoading: requestsLoading, refetch: refetchRequests, error: requestsError } = useQuery({
+    queryKey: ['serviceRequests', statusFilter],
+    queryFn: async () => {
+      try {
+        const response = await axios.get('/services', {
+          params: { status: statusFilter === 'ALL' ? undefined : statusFilter }
+        });
+        return response.data;
+      } catch (error: any) {
+        console.error('Service requests fetch error:', error);
+        throw error;
+      }
+    },
     refetchInterval: 10000,
-    enabled: false // Will be enabled after workshop check
+    enabled: !!workshopData?.workshop, // Enable when workshop exists
+    retry: 1
   });
 
   // Fetch available mechanics - only if workshop exists
@@ -95,17 +112,7 @@ const AdminDashboard: React.FC = () => {
       const response = await axios.get('/workshops/mechanics');
       return response.data;
     },
-    enabled: false // Will be enabled after workshop check
-  });
-
-  // Fetch user's workshop
-  const { data: workshopData, isLoading: workshopLoading, refetch: refetchWorkshop } = useQuery({
-    queryKey: ['workshop', 'my-workshop'],
-    queryFn: async () => {
-      const response = await axios.get('/workshops/my-workshop');
-      return response.data;
-    },
-    retry: false // Don't retry on 404
+    enabled: !!workshopData?.workshop // Enable when workshop exists
   });
 
   // Create workshop mutation
@@ -144,14 +151,6 @@ const AdminDashboard: React.FC = () => {
   const mechanics = mechanicsData?.mechanics || [];
   const workshop = workshopData?.workshop;
   const hasWorkshop = !!workshop;
-
-  // Enable queries after workshop check
-  React.useEffect(() => {
-    if (hasWorkshop) {
-      queryClient.invalidateQueries({ queryKey: ['serviceRequests'] });
-      queryClient.invalidateQueries({ queryKey: ['mechanics'] });
-    }
-  }, [hasWorkshop, queryClient]);
 
   const getUrgencyBadge = (urgency: string) => {
     switch (urgency) {
@@ -400,6 +399,17 @@ const AdminDashboard: React.FC = () => {
                     <CardDescription>Manage and assign service requests to mechanics</CardDescription>
                   </div>
                   <div className="flex items-center space-x-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => {
+                        refetchRequests();
+                        refetchMechanics();
+                      }}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Refresh
+                    </Button>
                     <Filter className="h-4 w-4 text-muted-foreground" />
                     <Select value={statusFilter} onValueChange={setStatusFilter}>
                       <SelectTrigger className="w-[160px]">
@@ -431,7 +441,26 @@ const AdminDashboard: React.FC = () => {
                   <CardContent className="flex items-center justify-center h-32">
                     <div className="text-center">
                       <XCircle className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-muted-foreground">No service requests found</p>
+                      <p className="text-muted-foreground mb-2">
+                        {statusFilter === 'ALL' ? 'No service requests found' : `No ${statusFilter.toLowerCase()} requests`}
+                      </p>
+                      <p className="text-xs text-muted-foreground mb-3">
+                        Workshop: {hasWorkshop ? 'Connected' : 'Not Connected'} • 
+                        API Status: {requestsLoading ? 'Loading...' : requestsError ? 'Error' : 'Ready'}
+                      </p>
+                      {requestsError && (
+                        <p className="text-xs text-red-600 mb-3">
+                          Error: {(requestsError as any)?.response?.data?.error || (requestsError as any)?.message || 'Failed to load requests'}
+                        </p>
+                      )}
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => refetchRequests()}
+                      >
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Retry Loading
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
