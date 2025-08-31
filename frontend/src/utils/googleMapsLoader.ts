@@ -74,7 +74,7 @@ class GoogleMapsLoader {
       script.defer = true;
 
       // Set up global callback
-      window[callbackName as keyof typeof window] = () => {
+      (window as any)[callbackName] = () => {
         this.isLoaded = true;
         this.isLoading = false;
         this.executeCallbacks();

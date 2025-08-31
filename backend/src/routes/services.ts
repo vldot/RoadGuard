@@ -18,7 +18,14 @@ const createServiceRequestSchema = z.object({
   pickupAddress: z.string().min(1, 'Pickup address is required'),
   latitude: z.number(),
   longitude: z.number(),
-  images: z.array(z.string()).default([])
+  images: z.array(z.string()).default([]),
+  workshopId: z.string().optional(),
+  serviceType: z.enum(['instant', 'prebook']).optional(),
+  scheduledTime: z.string().optional(),
+  servicePresetId: z.string().optional(),
+  costBreakdown: z.any().optional(),
+  customerName: z.string().optional(),
+  customerPhone: z.string().optional()
 });
 
 const updateServiceStatusSchema = z.object({
@@ -91,19 +98,48 @@ router.post('/', authenticateToken, requireRole(['END_USER']), async (req: AuthR
   try {
     const validatedData = createServiceRequestSchema.parse(req.body);
 
+    // Create service request with all the fields
     const serviceRequest = await prisma.serviceRequest.create({
       data: {
-        ...validatedData,
+        vehicleType: validatedData.vehicleType,
+        vehicleMake: validatedData.vehicleMake,
+        vehicleModel: validatedData.vehicleModel,
+        issueType: validatedData.issueType,
+        description: validatedData.description,
+        urgency: validatedData.urgency,
+        pickupAddress: validatedData.pickupAddress,
+        latitude: validatedData.latitude,
+        longitude: validatedData.longitude,
+        images: validatedData.images,
+        workshopId: validatedData.workshopId,
         customerId: req.user!.id
       },
       include: {
         customer: {
           select: { id: true, name: true, email: true, phone: true }
+        },
+        workshop: {
+          include: {
+            admin: {
+              select: { name: true, email: true }
+            }
+          }
         }
       }
     });
 
-    // Notify nearby workshops
+    // Send email notification to workshop admin if workshop is assigned
+    if (serviceRequest.workshop && serviceRequest.workshop.admin.email) {
+      try {
+        const sendServiceRequestNotification = require('../utils/sendServiceRequestNotification');
+        await sendServiceRequestNotification(serviceRequest.workshop.admin.email, serviceRequest);
+      } catch (emailError) {
+        console.error('Failed to send email notification:', emailError);
+        // Don't fail the request if email fails
+      }
+    }
+
+    // Notify nearby workshops via socket
     io.emit('new-service-request', {
       id: serviceRequest.id,
       location: {
@@ -111,7 +147,8 @@ router.post('/', authenticateToken, requireRole(['END_USER']), async (req: AuthR
         longitude: serviceRequest.longitude
       },
       issueType: serviceRequest.issueType,
-      urgency: serviceRequest.urgency
+      urgency: serviceRequest.urgency,
+      workshopId: serviceRequest.workshopId
     });
 
     res.status(201).json({ serviceRequest });

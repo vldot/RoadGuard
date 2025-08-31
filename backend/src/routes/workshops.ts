@@ -106,6 +106,70 @@ router.get('/nearby', async (req, res) => {
   }
 });
 
+// GET /api/workshops/my-workshop - Get current user's workshop (MUST be before /:id route)
+router.get('/my-workshop', authenticateToken, requireRole(['WORKSHOP_ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const workshop = await prisma.workshop.findUnique({
+      where: { adminId: req.user!.id },
+      include: {
+        admin: {
+          select: { name: true, email: true, phone: true }
+        },
+        mechanics: {
+          include: {
+            user: {
+              select: { name: true, phone: true }
+            }
+          }
+        },
+        _count: {
+          select: {
+            serviceRequests: true
+          }
+        }
+      }
+    });
+
+    if (!workshop) {
+      return res.status(404).json({ error: 'Workshop not found' });
+    }
+
+    // Get recent service requests count
+    const recentServices = await prisma.serviceRequest.count({
+      where: {
+        workshopId: workshop.id,
+        createdAt: {
+          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+        }
+      }
+    });
+
+    // Include service requests in the response
+    const serviceRequests = await prisma.serviceRequest.findMany({
+      where: { workshopId: workshop.id },
+      select: {
+        id: true,
+        customerId: true,
+        issueType: true, // Corrected field
+        status: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
+
+    res.json({ 
+      workshop: {
+        ...workshop,
+        recentServicesCount: recentServices,
+        serviceRequests
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching user workshop:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /api/workshops/:id - Get workshop details
 router.get('/:id', async (req, res) => {
   try {
@@ -286,55 +350,6 @@ router.put('/:id', authenticateToken, requireRole(['WORKSHOP_ADMIN']), async (re
   }
 });
 
-// GET /api/workshops/my-workshop - Get current user's workshop
-router.get('/my-workshop', authenticateToken, requireRole(['WORKSHOP_ADMIN']), async (req: AuthRequest, res) => {
-  try {
-    const workshop = await prisma.workshop.findUnique({
-      where: { adminId: req.user!.id },
-      include: {
-        admin: {
-          select: { name: true, email: true, phone: true }
-        },
-        mechanics: {
-          include: {
-            user: {
-              select: { name: true, phone: true }
-            }
-          }
-        },
-        _count: {
-          select: {
-            serviceRequests: true
-          }
-        }
-      }
-    });
-
-    if (!workshop) {
-      return res.status(404).json({ error: 'Workshop not found' });
-    }
-
-    // Get recent service requests count
-    const recentServices = await prisma.serviceRequest.count({
-      where: {
-        workshopId: workshop.id,
-        createdAt: {
-          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-        }
-      }
-    });
-
-    res.json({ 
-      workshop: {
-        ...workshop,
-        recentServicesCount: recentServices
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching user workshop:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
 
 // DELETE /api/workshops/:id - Delete workshop (Workshop Admin can delete their own)
 router.delete('/:id', authenticateToken, requireRole(['WORKSHOP_ADMIN']), async (req: AuthRequest, res) => {

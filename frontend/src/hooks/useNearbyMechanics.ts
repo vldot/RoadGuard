@@ -55,7 +55,7 @@ export const useNearbyMechanics = (
         params.serviceTypes = options.serviceTypes.join(',');
       }
 
-      const response = await axios.get('/api/mechanics/nearby', { params });
+      const response = await axios.get('/mechanics/nearby', { params });
       
       if (response.data.success) {
         setMechanics(response.data.mechanics);

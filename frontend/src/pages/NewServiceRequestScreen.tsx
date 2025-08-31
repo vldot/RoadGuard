@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import LiveLocationDisplay from '../components/LiveLocationDisplay';
+import ProblemDiagnosisAgent from '../components/ProblemDiagnosisAgent';
 import { toast } from 'react-hot-toast';
 import { 
   ArrowLeft,
@@ -20,7 +21,8 @@ import {
   Wrench,
   AlertCircle,
   CheckCircle2,
-  ChevronRight
+  ChevronRight,
+  Bot
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -54,11 +56,12 @@ interface ServiceRequestFormData {
   selectedServiceId: string;  // ID of the selected service preset
 }
 
-interface ChatMessage {
-  id: string;
-  sender: 'user' | 'agent';
-  message: string;
-  timestamp: Date;
+interface DiagnosisResult {
+  category: string;
+  confidence: number;
+  suggestedService: string;
+  description: string;
+  urgency: 'low' | 'medium' | 'high';
 }
 
 const NewServiceRequestScreen: React.FC = () => {
@@ -124,16 +127,8 @@ const NewServiceRequestScreen: React.FC = () => {
   }, [formData.vehicleType, formData.selectedServiceId]);
 
   const [uploading, setUploading] = useState(false);
-  const [showChat, setShowChat] = useState(false);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    {
-      id: '1',
-      sender: 'agent',
-      message: 'Hello! I\'m here to help you with your service request. How can I assist you?',
-      timestamp: new Date()
-    }
-  ]);
-  const [newMessage, setNewMessage] = useState('');
+  const [showDiagnosisAgent, setShowDiagnosisAgent] = useState(false);
+  const [aiDiagnosis, setAiDiagnosis] = useState<DiagnosisResult | null>(null);
 
   // Create service request mutation
   const createServiceMutation = useMutation({
@@ -206,29 +201,13 @@ const NewServiceRequestScreen: React.FC = () => {
     }
   };
 
-  const sendChatMessage = () => {
-    if (!newMessage.trim()) return;
-
-    const userMessage: ChatMessage = {
-      id: Date.now().toString(),
-      sender: 'user',
-      message: newMessage,
-      timestamp: new Date()
-    };
-
-    setChatMessages(prev => [...prev, userMessage]);
-    setNewMessage('');
-
-    // Simulate agent response
-    setTimeout(() => {
-      const agentMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        sender: 'agent',
-        message: 'Thank you for your message. Our team will review your request and get back to you shortly.',
-        timestamp: new Date()
-      };
-      setChatMessages(prev => [...prev, agentMessage]);
-    }, 1000);
+  const handleDiagnosisComplete = (diagnosis: DiagnosisResult) => {
+    setAiDiagnosis(diagnosis);
+    setFormData(prev => ({
+      ...prev,
+      issueDescription: `${diagnosis.category}: ${diagnosis.description}`
+    }));
+    toast.success('AI diagnosis completed! Issue description has been updated.');
   };
 
   // Handle navigation between form steps
@@ -357,10 +336,14 @@ const NewServiceRequestScreen: React.FC = () => {
               <Button 
                 variant="outline" 
                 size="sm"
-                onClick={() => setShowChat(true)}
+                onClick={() => setShowDiagnosisAgent(true)}
+                className="relative"
               >
-                <MessageCircle className="h-4 w-4 mr-2" />
-                Chat
+                <Bot className="h-4 w-4 mr-2" />
+                AI Diagnosis
+                {aiDiagnosis && (
+                  <span className="absolute -top-1 -right-1 h-2 w-2 bg-green-500 rounded-full"></span>
+                )}
               </Button>
             </div>
           </div>
@@ -585,7 +568,6 @@ const NewServiceRequestScreen: React.FC = () => {
                     onLocationChange={handleLocationChange}
                     showMap={true}
                     mapHeight="400px"
-                    enableSearch={true}
                     showAddress={true}
                     showAccuracy={true}
                   />
@@ -672,13 +654,46 @@ const NewServiceRequestScreen: React.FC = () => {
               {/* Issue Description */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Describe Issue *</CardTitle>
+                  <CardTitle className="flex items-center justify-between">
+                    Describe Issue *
+                    <Button 
+                      type="button"
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setShowDiagnosisAgent(true)}
+                    >
+                      <Bot className="h-4 w-4 mr-1" />
+                      Get AI Help
+                    </Button>
+                  </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
+                  {aiDiagnosis && (
+                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="flex items-start space-x-3">
+                        <Bot className="h-5 w-5 text-blue-600 mt-0.5" />
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-blue-900 mb-1">AI Diagnosis Result</h4>
+                          <p className="text-sm text-blue-800 mb-2"><strong>{aiDiagnosis.category}</strong></p>
+                          <p className="text-sm text-blue-700 mb-2">{aiDiagnosis.description}</p>
+                          <div className="flex items-center space-x-4 text-xs text-blue-600">
+                            <span>Confidence: {aiDiagnosis.confidence}%</span>
+                            <span className={`px-2 py-1 rounded-full ${
+                              aiDiagnosis.urgency === 'high' ? 'bg-red-100 text-red-800' :
+                              aiDiagnosis.urgency === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-green-100 text-green-800'
+                            }`}>
+                              {aiDiagnosis.urgency.toUpperCase()} URGENCY
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   <Textarea
                     value={formData.issueDescription}
                     onChange={(e) => setFormData(prev => ({ ...prev, issueDescription: e.target.value }))}
-                    placeholder="Please describe the problem in detail..."
+                    placeholder="Please describe the problem in detail... (or use AI Diagnosis for help)"
                     rows={4}
                     required
                   />
@@ -818,50 +833,13 @@ const NewServiceRequestScreen: React.FC = () => {
         </form>
       </div>
 
-      {/* Chat Modal */}
-      {showChat && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-background rounded-lg shadow-lg w-full max-w-md mx-4 h-96 flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="text-lg font-semibold">Chat with Agent</h3>
-              <Button variant="ghost" size="sm" onClick={() => setShowChat(false)}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {chatMessages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div
-                    className={`max-w-xs px-3 py-2 rounded-lg text-sm ${
-                      msg.sender === 'user'
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted text-foreground'
-                    }`}
-                  >
-                    {msg.message}
-                  </div>
-                </div>
-              ))}
-            </div>
-            
-            <div className="p-4 border-t">
-              <div className="flex space-x-2">
-                <Input
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Type your message..."
-                  onKeyPress={(e) => e.key === 'Enter' && sendChatMessage()}
-                />
-                <Button onClick={sendChatMessage}>Send</Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* AI Diagnosis Agent Modal */}
+      <ProblemDiagnosisAgent
+        isOpen={showDiagnosisAgent}
+        onClose={() => setShowDiagnosisAgent(false)}
+        onDiagnosisComplete={handleDiagnosisComplete}
+        vehicleType={formData.vehicleType || 'Car'}
+      />
     </div>
   );
 };
